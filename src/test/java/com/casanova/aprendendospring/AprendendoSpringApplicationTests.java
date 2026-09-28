@@ -19,5 +19,5 @@ class AprendendoSpringApplicationTests {
     @Test
     void contextLoads() {
     }
-
+// Exibindo conflitos de codigo. Simulação.
 }
