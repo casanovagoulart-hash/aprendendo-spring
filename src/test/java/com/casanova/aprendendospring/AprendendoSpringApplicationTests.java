@@ -19,5 +19,5 @@ class AprendendoSpringApplicationTests {
     @Test
     void contextLoads() {
     }
-
+//Testando alterações GITHUB e QODANA no " feauture/testando_workflow " simulação.
 }
