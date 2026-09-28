@@ -8,14 +8,14 @@ import org.springframework.stereotype.Repository;
  *
  * Por que essa classe precisa existir?
  * Como CrudRepositoryImpl é genérica e abstrata, o Spring não consegue
- * instanciá-la sozinha (não saberia qual "T" usar). Esta subclasse
+ * instanciá-la sozinho (não saberia qual "T" usar). Esta subclasse
  * "fecha" os tipos genéricos (Usuario, Long) e informa ao construtor
- * da superclasse qual é a Class<T> concreta - isso é o que permite
+ * da superclasse qual é a {@code Class<T>} concreta - isso é o que permite
  * o uso de entityManager.find(domainClass, id) lá na superclasse.
  *
- * @Repository marca essa classe como um componente gerenciado pelo Spring
- * (um @Component especializado para a camada de acesso a dados), permitindo
- * que ela seja injetada em outros lugares via @Autowired/injeção de construtor.
+ * {@code @Repository} marca essa classe como um componente gerenciado pelo Spring
+ * (um {@code @Component} especializado para a camada de acesso a dados), permitindo
+ * que ela seja injetada em outros lugares via {@code @Autowired} ou injeção de construtor.
  */
 @Repository
 public class UsuarioCrudRepositoryImplManual extends CrudRepositoryImpl<Usuario, Long> {

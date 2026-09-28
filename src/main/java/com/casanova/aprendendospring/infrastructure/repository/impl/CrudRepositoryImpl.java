@@ -5,6 +5,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,20 +16,27 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Implementação manual de CrudRepository usando EntityManager puro (JPA "cru"),
+ * Implementação manual de {@code CrudRepository} usando EntityManager puro (JPA "cru"),
  * sem depender do Spring Data gerar a implementação automaticamente.
  *
  * OBJETIVO DIDÁTICO: mostrar o que o Spring Data faz "por baixo dos panos"
  * quando você simplesmente cria uma interface estendendo JpaRepository.
  *
- * <T>  -> tipo da entidade (ex: Usuario)
- * <ID> -> tipo do identificador da entidade (ex: Long)
+ * {@code T}  -> tipo da entidade (ex: Usuario)
+ * {@code ID} -> tipo do identificador da entidade (ex: Long)
  *
  * Como é genérica, ela sozinha não sabe qual entidade concreta manipular
  * em tempo de execução (o Java "apaga" o tipo genérico em runtime - isso
- * se chama "type erasure"). Por isso guardamos explicitamente a Class<T>
+ * se chama "type erasure"). Por isso guardamos explicitamente a {@code Class<T>}
  * no construtor, para poder usar entityManager.find(domainClass, id).
+ *
+ * NULLABILIDADE (JSpecify): {@code @NullMarked} declara que, nesta classe, nenhum
+ * tipo aceita null por padrão - é o mesmo contrato que as interfaces do Spring Data 4
+ * já usam. Quando um valor PODE ser null, marcamos explicitamente com {@code @Nullable}
+ * (veja o método extractId). Isso é o que faz os avisos "Not annotated method overrides
+ * method annotated with @NullMarked" desaparecerem.
  */
+@NullMarked
 public abstract class CrudRepositoryImpl<T, ID> implements CrudRepository<T, ID> {
 
     // @PersistenceContext injeta o EntityManager gerenciado pelo Spring/JPA.
@@ -49,7 +58,8 @@ public abstract class CrudRepositoryImpl<T, ID> implements CrudRepository<T, ID>
         // Extraímos o ID da entidade via reflection para decidir:
         // - se ainda não existe no banco -> INSERT (persist)
         // - se já existe -> UPDATE (merge)
-        ID id = extractId(entity);
+        // @Nullable aqui porque uma entidade nova ainda não tem ID (o banco vai gerá-lo).
+        @Nullable ID id = extractId(entity);
         if (id == null || entityManager.find(domainClass, id) == null) {
             entityManager.persist(entity); // equivale a um INSERT
             return entity;
@@ -160,15 +170,18 @@ public abstract class CrudRepositoryImpl<T, ID> implements CrudRepository<T, ID>
 
     /**
      * Usa Reflection para encontrar, em tempo de execução, qual campo da
-     * entidade está anotado com @Id (a chave primária) e devolve o valor dele.
+     * entidade está anotado com {@code @Id} (a chave primária) e devolve o valor dele.
      *
      * Isso é necessário porque, de forma genérica, não sabemos de antemão
      * qual atributo representa o ID de cada entidade (pode ser "id", "codigo",
      * etc). O Spring Data faz algo parecido internamente, de forma bem mais
      * sofisticada, através dos metadados de persistência (PersistentEntity).
+     *
+     * O retorno é {@code @Nullable}: devolve null quando a entidade ainda não tem ID
+     * (objeto novo, ainda não salvo) ou quando nenhum campo {@code @Id} é encontrado.
      */
     @SuppressWarnings("unchecked")
-    private ID extractId(T entity) {
+    private @Nullable ID extractId(T entity) {
         try {
             for (Field field : domainClass.getDeclaredFields()) {
                 if (field.isAnnotationPresent(Id.class)) {

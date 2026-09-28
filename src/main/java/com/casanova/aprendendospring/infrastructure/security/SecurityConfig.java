@@ -96,4 +96,5 @@ No              entanto, pode ser desativado em APIs REST que não suportam cook
         // Gerencia autenticação, integrando com o UserDetailsService
         return authenticationConfiguration.getAuthenticationManager();
     }
+
 }

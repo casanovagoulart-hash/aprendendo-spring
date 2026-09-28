@@ -26,25 +26,51 @@ import static org.mockito.Mockito.*;
 /**
  * Teste unitário (não sobe o Spring, não toca no PostgreSQL de verdade).
  *
- * @ExtendWith(MockitoExtension.class) liga o Mockito ao JUnit 5.
- * @Mock cria dublês (fakes) das dependências - aqui não existe banco real,
- * apenas objetos que "fingem" ser UsuarioRepository e PasswordEncoder.
- * @InjectMocks cria uma instância real de UsuarioService e injeta os @Mock
- * acima nos campos correspondentes (equivalente ao que o Spring faria,
- * mas manualmente e sem subir o contexto todo).
+ * ANOTAÇÕES USADAS NESTA CLASSE E O QUE CADA UMA FAZ
+ *
+ * {@code @ExtendWith(MockitoExtension.class)}
+ * O JUnit 5 permite plugar "extensões" no ciclo de vida dos testes. Esta liga o Mockito
+ * ao JUnit: antes de CADA teste ela cria os mocks e os injeta nos campos da classe, e
+ * depois de cada teste ela limpa tudo. Sem ela, os campos marcados com {@code @Mock} e
+ * {@code @InjectMocks} ficariam null e qualquer chamada terminaria em NullPointerException.
+ * Ela também ativa o "strict stubs": se você programar um when(...) que o teste nunca
+ * usa, o Mockito acusa UnnecessaryStubbingException - isso mantém os testes enxutos.
+ *
+ * {@code @Mock}
+ * Cria um dublê (fake) de uma dependência - aqui não existe banco real, apenas objetos que
+ * "fingem" ser UsuarioRepository e PasswordEncoder. Por padrão um mock não faz nada: métodos
+ * que devolvem Optional respondem Optional.empty(), coleções vêm vazias, números vêm 0,
+ * boolean vem false e o resto vem null. Nós "ensinamos" o comportamento com
+ * when(...).thenReturn(...) e, depois, conferimos como ele foi usado com verify(...).
+ *
+ * {@code @InjectMocks}
+ * Cria uma instância REAL de UsuarioService (a classe que está sendo testada) e injeta nela
+ * os mocks declarados acima. O Mockito tenta primeiro pelo construtor (o UsuarioService tem
+ * um, gerado pelo Lombok com {@code @RequiredArgsConstructor}), casando os parâmetros pelo
+ * TIPO; se não der, tenta por setter e depois direto no campo. É o equivalente ao que o
+ * Spring faria, mas manualmente e sem subir o contexto todo.
+ *
+ * {@code @Test}
+ * Marca o método como um caso de teste do JUnit 5. O JUnit cria uma instância NOVA desta
+ * classe para cada método de teste, então os mocks começam "zerados" em todo teste (um teste
+ * nunca contamina o outro). No JUnit 5 o método não precisa ser public.
  */
 @ExtendWith(MockitoExtension.class)
 class UsuarioServiceTest {
 
+    // Dublê do repositório: nenhuma consulta vai ao PostgreSQL, tudo é simulado em memória.
     @Mock
     private UsuarioRepository usuarioRepository;
 
+    // Dublê do codificador de senha: evita depender do algoritmo real (BCrypt, por exemplo).
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    // Classe sob teste: instância real, recebendo os dois mocks acima pelo construtor.
     @InjectMocks
     private UsuarioService usuarioService;
 
+    // Convenção de nome: metodo_deve[Resultado]_quando[Condicao] - o nome já documenta o cenário.
     @Test
     void salvaUsuario_deveLancarConflictException_quandoEmailJaExiste() {
         // ARRANGE: simula que já existe um usuário com esse email no banco
@@ -55,6 +81,8 @@ class UsuarioServiceTest {
                 .senha("senha123")
                 .build();
 
+        // when(...).thenReturn(...): "quando o repositório for chamado com este email,
+        // responda com um Optional contendo um usuário" (ou seja, o email já existe).
         when(usuarioRepository.findByEmail(email)).thenReturn(Optional.of(new Usuario()));
 
         // ACT + ASSERT: chamar salvaUsuario deve lançar ConflictException,
@@ -63,6 +91,7 @@ class UsuarioServiceTest {
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("Email já cadastrado");
 
+        // verify(..., never()): confirma que esses métodos NÃO foram chamados.
         verify(usuarioRepository, never()).save(any());
         verify(passwordEncoder, never()).encode(anyString());
     }
@@ -82,7 +111,8 @@ class UsuarioServiceTest {
         when(usuarioRepository.findByEmail(emailNovo)).thenReturn(Optional.empty());
         when(passwordEncoder.encode("senhaEmTextoPuro")).thenReturn("HASH_FALSO_DE_TESTE");
 
-        // Simula o que o banco faria: devolve a mesma entidade recebida, já com um id.
+        // thenAnswer: em vez de uma resposta fixa, executa uma lógica. Simula o que o banco
+        // faria: devolve a mesma entidade recebida, já com um id.
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> {
             Usuario usuarioRecebido = invocation.getArgument(0);
             usuarioRecebido.setId(1L);
@@ -101,9 +131,9 @@ class UsuarioServiceTest {
         // campo/getter de senha - ou seja, é estruturalmente impossível a senha
         // (ou o hash dela) vazar nessa resposta. Não há "getSenha()" para chamar aqui.
 
-        // Captura o objeto Usuario que de fato foi passado para o repository.save()
-        // para confirmar que a senha foi codificada ANTES de ir para o banco,
-        // nunca sendo salva em texto puro.
+        // ArgumentCaptor: "captura" o objeto Usuario que de fato foi passado para o
+        // repository.save(), para confirmar que a senha foi codificada ANTES de ir
+        // para o banco, nunca sendo salva em texto puro.
         ArgumentCaptor<Usuario> usuarioCapturado = ArgumentCaptor.forClass(Usuario.class);
         verify(usuarioRepository).save(usuarioCapturado.capture());
         assertThat(usuarioCapturado.getValue().getSenha()).isEqualTo("HASH_FALSO_DE_TESTE");
